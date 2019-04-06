@@ -1,0 +1,211 @@
+---
+title: "Hassan_El_Morra Capstone-2019"
+author: "Hassan El Morra"
+date: "March 31, 2019"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r install packages and libraries}
+#Sys.setenv(WEKA_HOME="C:\\Users\\elmor\\wekafiles")
+
+require("RWeka")  # Install R libarry to interface with Weka
+
+```
+
+```{r loading the training data and test data for 7 Anomalies + Normal}
+train_7fault_cat<-read.csv("C:\\Users\\elmor\\My project\\capstonre-2019\\Ryerson-data-Science-certificate-capstone\\data\\processed data\\Faults processed\\WEKA\\training_export_7_anom_std_cat.csv")
+
+test_7fault_cat<-read.csv("C:\\Users\\elmor\\My project\\capstonre-2019\\Ryerson-data-Science-certificate-capstone\\data\\processed data\\Faults processed\\WEKA\\test_export_7_anom_std_cat.csv")
+
+```
+
+```{r Create the Weka Random Forest Classifier with right parameters}
+
+WekaRandomForset<-make_Weka_classifier("weka/classifiers/trees/RandomForest")
+# W`OW(WekaRandomForset)    #Show the random forest parameters
+RF_model<-WekaRandomForset(formula = label~.,data = train_7fault_cat,control = Weka_control(B=TRUE))
+system.time(e<-evaluate_Weka_classifier(RF_model,numFolds = 10,seed=1,class = TRUE))
+e      # Evaluate classifier using 10-folds CV
+```
+
+```{r Apply to Testing data}
+
+e2<-evaluate_Weka_classifier(object = RF_model,newdata = test_7fault_cat,seed=2,class=TRUE)
+e2
+summary(e2)
+
+```
+
+
+```{ Create the Weka SVM Classifier with the right parameters}
+
+WekaSVMLin<-make_Weka_classifier("weka/classifiers/functions/LibLINEAR")
+# W`OW(WekaRandomForset)    #Show the random forest parameters
+RF_model_lsvm<-WekaSVMLin(formula = label~.,data = train_7fault_cat,control = Weka_control(S=2,C=30))
+system.time(e<-evaluate_Weka_classifier(RF_model,numFolds = 10,seed=1,class = TRUE))
+e      # Evaluate classifier using 10-folds CV
+```
+
+```{ Using the libLineaR R libaray}
+
+data(iris)
+x=iris[,1:4]
+y=factor(iris[,5])
+train=sample(1:dim(iris)[1],100)
+xTrain=x[train,]
+xTest=x[-train,]
+yTrain=y[train]
+yTest=y[-train]  
+s=scale(xTrain,center=TRUE,scale=TRUE)
+
+co=heuristicC(s)
+t=6
+m=LiblineaR(data = xTrain,target = yTrain,type =t,cost = co,bias=TRUE,verbose = FALSE)
+
+s2=scale(xTest,attr(s,"scaled:center"),attr(s,"scaled:scale"))
+p=predict(m,s2)
+
+res=table(p$predictions,yTest)
+print(res)
+
+BCR=mean(c(res[1,1]/sum(res[,1]),res[2,2]/sum(res[,2]),res[3,3]/sum(res[,3])))
+print(BCR)
+
+```
+
+```{r  feature selection}
+
+attSelection<-make_Weka_attribute_evaluator("weka.attributeSelection.ClassifierAttributeEval")
+#WOW(attSelection)
+
+rankAttribute<-attSelection(formula = label~.,data = train_7fault_cat,control = Weka_control(B="weka.classifiers.trees.J48",F=5))
+
+#attSelection2<-make_Weka_attribute_evaluator("weka.attributeSelection.CorrelationAttributeEval")
+
+## feature selection based on correlation --> not accepted
+#rankAttribute2<-attSelection2(formula = label~.,data = train_7fault_cat)
+
+plot(sort(x = rankAttribute,decreasing = TRUE))
+```
+
+```{r reevaluate the model after attribute selection 15 top features}
+# using Attribute selected from ClassifierAttributeEval
+# training the model
+RF_model_reduced<-WekaRandomForset(formula = label~XMEAS_38+XMEAS_39+XMEAS_37+XMEAS_41+XMEAS_40+XMEAS_1+XMEAS_34+XMEAS_10+XMEAS_18+XMEAS_28+XMEAS_19+XMV_9+XMV_4+XMEAS_4+XMV_3,data = train_7fault_cat,control = Weka_control(B=TRUE))
+system.time(e_ModelReduce<-evaluate_Weka_classifier(RF_model_reduced,numFolds = 10,seed=1,class = TRUE))
+e_ModelReduce
+
+# testing the model
+e_ModelReduce_2<-evaluate_Weka_classifier(object = RF_model_reduced,newdata = test_7fault_cat,seed=1,class=TRUE)
+
+e_ModelReduce_2
+
+#summary(e2)
+```
+
+
+```{r Do Cross-Project Model fitting}
+
+#load the data
+
+train_7fault_cat_bin<-read.csv("C:\\Users\\elmor\\My project\\capstonre-2019\\Ryerson-data-Science-certificate-capstone\\data\\processed data\\Faults processed\\WEKA\\training_export_7_anom_std_cat_bin_new.csv")
+
+test_Ranfault_cat_bin<-read.csv("C:\\Users\\elmor\\My project\\capstonre-2019\\Ryerson-data-Science-certificate-capstone\\data\\processed data\\Faults processed\\Cross Project Valudation Data\\Python\\new_export_random_anom_std_binary.csv")
+
+test_7fault_cat_bin<-read.csv("C:\\Users\\elmor\\My project\\capstonre-2019\\Ryerson-data-Science-certificate-capstone\\data\\processed data\\Faults processed\\WEKA\\test_export_7_anom_std_cat_bin_new.csv")
+# train the same model on the new binary data
+
+# WekaRandomForset<-make_Weka_classifier("weka/classifiers/trees/RandomForest")
+# W`OW(WekaRandomForset)    #Show the random forest parameters
+RF_model_cp<-WekaRandomForset(formula = label~.,data = train_7fault_cat_bin,control = Weka_control(B=TRUE))
+system.time(e11<-evaluate_Weka_classifier(RF_model_cp,numFolds = 10,seed=1,class = TRUE))
+e11      # Evaluate classifier using 10-folds CV
+
+## test the new model with the same 7 anomalies binary data
+
+Model_intProj_bin<-evaluate_Weka_classifier(object = RF_model_cp,newdata = test_7fault_cat_bin,seed=1,class=TRUE)
+
+Model_intProj_bin
+
+# apply Dimenssion reduction to Binary class
+
+RF_model_reduced_bin<-WekaRandomForset(formula = label~XMEAS_38+XMEAS_39+XMEAS_37+XMEAS_41+XMEAS_40+XMEAS_1+XMEAS_34+XMEAS_10+XMEAS_18+XMEAS_28+XMEAS_19+XMV_9+XMV_4+XMEAS_4+XMV_3,data = train_7fault_cat_bin,control = Weka_control(B=TRUE))
+
+system.time(e_ModelReduce_bin<-evaluate_Weka_classifier(RF_model_reduced_bin,numFolds = 10,seed=1,class = TRUE))
+e_ModelReduce_bin
+
+# testing the model
+e_ModelReduce_bin1<-evaluate_Weka_classifier(object = RF_model_reduced_bin,newdata = test_7fault_cat_bin,seed=1,class=TRUE)
+
+e_ModelReduce_bin1
+```
+
+```{r Cross-project model testing}
+
+# Test on new data generated from 5 faults of type RANDOM
+
+Model_cp<-evaluate_Weka_classifier(object = RF_model_cp,newdata = test_Ranfault_cat_bin,seed=1,class=TRUE)
+
+Model_cp
+
+#--- using the one with dimenssion reduction
+
+Model_cp_FS<-evaluate_Weka_classifier(object = RF_model_reduced_bin,newdata = test_Ranfault_cat_bin,seed=1,class=TRUE)
+
+Model_cp_FS
+#summary(Model_cp)
+
+
+```
+
+
+```{r  using the SMO algorithm for SVM}
+
+WekaSMO<-make_Weka_classifier("weka.classifiers.functions.SMO")
+
+# SVM
+
+SV_model<-WekaSMO(formula = label~.,data = train_7fault_cat,control = Weka_control(N=2,K=list("weka.classifiers.functions.supportVector.PolyKernel",E=1),calibrator="J48"))
+
+system.time(e_sv<-evaluate_Weka_classifier(SV_model,numFolds = 10,seed=1,class = TRUE))
+
+e_sv
+
+
+Model_sv<-evaluate_Weka_classifier(object = SV_model,newdata = test_7fault_cat,seed=1,class=TRUE)
+
+Model_sv
+
+# SVM with feature selection
+
+SV_model_FS<-WekaSMO(formula = label~XMEAS_38+XMEAS_39+XMEAS_37+XMEAS_41+XMEAS_40+XMEAS_1+XMEAS_34+XMEAS_10+XMEAS_18+XMEAS_28+XMEAS_19+XMV_9+XMV_4+XMEAS_4+XMV_3,data = train_7fault_cat,control = Weka_control(N=2,K=list("weka.classifiers.functions.supportVector.PolyKernel",E=1),calibrator="J48"))
+
+system.time(e_sv_fs<-evaluate_Weka_classifier(SV_model_FS,numFolds = 10,seed=1,class = TRUE))
+
+e_sv_fs
+
+
+Model_sv_fs<-evaluate_Weka_classifier(object = SV_model_FS,newdata = test_7fault_cat,seed=1,class=TRUE)
+
+Model_sv_fs
+```
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
